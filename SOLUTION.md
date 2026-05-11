@@ -17,17 +17,18 @@ The previous Claude conversation recommended **Concept 1** at $195–320. My fir
 
 The fix: a fresh parametric model (`cad/parametric_insert.py`) sized to the real measurements. Volume drops from Concept 2's 3,698 cm³ to **1,697 cm³** — less than half. Print budget drops with it.
 
-**Expected all-in cost for the v2 design:**
-- Hobbyist (find a Bambu/Prusa owner): **$40–80**
-- Makerspace as non-member: **$25–60**
-- Craftcloud quadrants (online service): **$80–150**
+**Expected all-in cost for the v2 design (50 mm tall shelled funnel):**
+- Hobbyist (find a Bambu/Prusa owner): **$15–30**
+- Makerspace as non-member: **$10–25**
+- Craftcloud quadrants (online service): **$25–60**
 
-| Path | Concept 1 (single, original) | Concept 2 (quartered, original) | v2 parametric (quartered, correct size) |
-|---|---:|---:|---:|
-| Solid volume | 10,515 cm³ | 3,698 cm³ | **1,697 cm³** |
-| Filament @ 20% infill | ~2.9 kg | ~1.0 kg | **~450 g** |
-| Service price estimate | $300–500+ | $180–320 | **$80–150** |
-| Fits the basin? | no (also too big) | no (also too big) | **yes** |
+| Path | Concept 1 (orig) | Concept 2 quartered (orig) | v2 22mm shallow | v2 50mm shelled |
+|---|---:|---:|---:|---:|
+| Solid volume | 10,515 cm³ | 3,698 cm³ | 1,697 cm³ | **212 cm³** |
+| Filament @ 20% infill | ~2.9 kg | ~1.0 kg | ~450 g | **~57 g** |
+| Slope (short axis) | 3.8° | 3.8° | 12.2° | **28.1°** |
+| Service price estimate | $300–500+ | $180–320 | $80–150 | **$25–60** |
+| Fits the basin? | no (too big) | no (too big) | yes | **yes** |
 
 ## Why the previous recommendation was wrong
 
@@ -155,13 +156,14 @@ Design parameters (editable at the top of `cad/parametric_insert.py`):
 | Parameter | Value | Why |
 |---|---|---|
 | Outer footprint | 412 × 306 mm | 4 mm inset per side for drop-in/lift-out clearance |
-| Rim height | 22 mm | Far below the 100 mm overflow |
+| Rim height | 50 mm | Steep slope = aggressive drainage; still 50 mm below the 100 mm overflow |
 | Center cutout | 92 mm dia | Clears drain throat + pop-up button + finger access |
 | Drain-ring flat | 130 mm OD, 3 mm height | Funnel transitions to a flat ring around the drain so the insert doesn't sit on drain hardware |
 | Wall thickness | 3 mm | Standard for FDM PETG |
-| Slope (rim to drain) | ~5° | 3× plumbing minimum, defeats surface tension |
+| Slope (rim to drain) | 18.4° long axis / 28.1° short axis | 15-25× plumbing minimum; water cannot pool |
+| Topology | Open-bottom shell | Hollow funnel walls; basin's real drain visible through center cutout. Light, cheap, no water-trap zones. |
 
-Quadrant sizes (each tile after split): **~206 × 153 × 22 mm, 424 cm³**. Fits any 256 mm-class consumer printer with massive margin. At ~110 g per tile of filament, each takes 3–4 hours to print.
+Quadrant sizes (each tile after split): **~206 × 153 × 50 mm, 53 cm³**. Fits any 256 mm-class consumer printer. At ~14 g per tile of filament, each prints in 2–3 hours.
 
 ## Open questions worth confirming before printing
 

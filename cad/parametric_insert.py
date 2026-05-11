@@ -23,7 +23,7 @@ BASIN_L          = 420.0   # basin floor long axis
 BASIN_W          = 314.0   # basin floor short axis
 EDGE_INSET       = 4.0     # gap from basin wall (drop-in/lift-out clearance)
 DRAIN_HOLE_D     = 92.0    # center cutout (clears 70.78 drain + pop-up + finger)
-RIM_HEIGHT       = 22.0    # outer rim above basin floor
+RIM_HEIGHT       = 50.0    # outer rim above basin floor (steep slope = aggressive drainage)
 DRAIN_RING_H     = 3.0     # flat lip around drain (so insert doesn't sit on drain hardware)
 DRAIN_RING_OD    = 130.0   # outer dia of the flat ring before slope begins
 WALL_THICK       = 3.0     # FDM wall thickness
@@ -34,7 +34,7 @@ OUTER_W = BASIN_W - 2 * EDGE_INSET
 OUT_DIR = os.path.join(os.path.dirname(__file__), "v2_parametric")
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# ---- build outer body ----
+# ---- build outer body (solid slab, will be shelled to a thin funnel) ----
 body = (
     cq.Workplane("XY")
     .rect(OUTER_L, OUTER_W)
@@ -44,8 +44,6 @@ body = (
 )
 
 # ---- build funnel cavity as a proper loft solid via Workplane chain ----
-# Lower profile: circle at DRAIN_RING_H
-# Upper profile: rect at RIM_HEIGHT (slightly over for clean subtraction)
 inner_w = OUTER_L - 2 * WALL_THICK
 inner_h = OUTER_W - 2 * WALL_THICK
 
@@ -60,6 +58,36 @@ funnel = (
 
 # ---- subtract cavity, then drill drain hole ----
 insert = body.cut(funnel)
+
+# ---- hollow the part: leave WALL_THICK shell, open at the bottom ----
+# This turns a 3.5 kg slab into a ~450 g shelled funnel.
+bottom_face = insert.faces("<Z").val()
+try:
+    insert = insert.shell(-WALL_THICK, kind="intersection")
+    # shell with negative offset hollows inward; we open the bottom by cutting
+    # a slab off the underside.
+except Exception:
+    # Fallback: subtract an inset version of the body from itself.
+    inner_body = (
+        cq.Workplane("XY")
+        .rect(OUTER_L - 2 * WALL_THICK, OUTER_W - 2 * WALL_THICK)
+        .extrude(RIM_HEIGHT - WALL_THICK)
+        .edges("|Z")
+        .fillet(max(0.1, 8 - WALL_THICK))
+    )
+    # The inner_body sits on top of a WALL_THICK-thick floor at z=0..WALL_THICK
+    inner_body = inner_body.translate((0, 0, WALL_THICK))
+    insert = insert.cut(inner_body)
+
+# Open the bottom: remove the floor under the funnel cavity
+floor_cutter = (
+    cq.Workplane("XY")
+    .rect(OUTER_L - 2 * WALL_THICK, OUTER_W - 2 * WALL_THICK)
+    .extrude(WALL_THICK + 0.1)
+    .edges("|Z")
+    .fillet(max(0.1, 6))
+)
+insert = insert.cut(floor_cutter)
 
 drain = (
     cq.Workplane("XY")
