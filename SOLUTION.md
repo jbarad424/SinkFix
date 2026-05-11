@@ -4,15 +4,30 @@
 
 | Path | Purpose |
 |---|---|
-| `cad/Concept_01.STEP` | Original "smooth bowl" design (Muhammad, single piece) |
-| `cad/Concept_02.STEP` | Original "ramped funnel" design (Muhammad, single piece) |
-| `cad/split/Concept_02_Q[1-4]_*.step` | Concept 2 split into 4 quadrants for consumer-printer beds |
-| `cad/split/Concept_02_Q[1-4]_*.stl` | Same, as STL (what print services and slicers want) |
-| `cad/split_concept2.py` | Script that produced the splits — re-run to regenerate |
+| `cad/v2_parametric/insert_full.{stl,step}` | **Current design** — sized to the actual basin from Sink.pdf |
+| `cad/v2_parametric/insert_Q[1-4]_*.{stl,step}` | v2 split into 4 quadrants for consumer printers |
+| `cad/parametric_insert.py` | Parametric build script — edit constants at top, re-run to regenerate |
+| `cad/Concept_01.STEP` | Muhammad's original "smooth bowl" (wrong size — see notes below) |
+| `cad/Concept_02.STEP` | Muhammad's original "ramped funnel" (wrong size — see notes below) |
+| `cad/split/Concept_02_Q*` | Earlier (oversized) quartering of Muhammad's Concept 2, kept for reference |
 
-## TL;DR — what changed vs. the last chat
+## TL;DR — what changed after the Sink.pdf measurements arrived
 
-The previous Claude conversation recommended **Concept 1** and gave a $195–$320 budget. After actually measuring both STEP files with cadquery, the recommendation flips: **print Concept 2, split into 4 quadrants**. Expected all-in cost: **$60–$150** if you go through a hobbyist (Bambu A1 / Prusa owner) or makerspace, **$180–$320** if you use a commercial print service.
+The previous Claude conversation recommended **Concept 1** at $195–320. My first revision recommended **Concept 2 quartered** at $60–150. After reading Sink.pdf and confirming the basin floor is **420 × 314 mm with a 70.78 mm drain hole**, the real verdict is: **neither STEP file is the right size.** Both Muhammad concepts have a 451.8 × 401.0 mm footprint, which is 32 mm too long and **87 mm too wide** for your actual basin floor.
+
+The fix: a fresh parametric model (`cad/parametric_insert.py`) sized to the real measurements. Volume drops from Concept 2's 3,698 cm³ to **1,697 cm³** — less than half. Print budget drops with it.
+
+**Expected all-in cost for the v2 design:**
+- Hobbyist (find a Bambu/Prusa owner): **$40–80**
+- Makerspace as non-member: **$25–60**
+- Craftcloud quadrants (online service): **$80–150**
+
+| Path | Concept 1 (single, original) | Concept 2 (quartered, original) | v2 parametric (quartered, correct size) |
+|---|---:|---:|---:|
+| Solid volume | 10,515 cm³ | 3,698 cm³ | **1,697 cm³** |
+| Filament @ 20% infill | ~2.9 kg | ~1.0 kg | **~450 g** |
+| Service price estimate | $300–500+ | $180–320 | **$80–150** |
+| Fits the basin? | no (also too big) | no (also too big) | **yes** |
 
 ## Why the previous recommendation was wrong
 
@@ -125,9 +140,32 @@ Porcelain has very low contact-angle hysteresis with water: water beads up rathe
 
 PETG with a gloss finish has lower contact-angle hysteresis than porcelain too, so water sheets off it better than off the original basin — the insert is functionally an upgrade, not just a workaround.
 
+## v2 parametric design
+
+Measurements pulled from Sink.pdf (Muhammad's caliper + tape measurement work):
+
+| Parameter | Value | Source |
+|---|---|---|
+| Basin floor | 420 × 314 mm | Page 6 blue-tape measurement |
+| Drain hole dia | 70.78 mm | Page 8 caliper reading |
+| Overflow height | ~100 mm above floor | Previous chat (verify with ruler) |
+
+Design parameters (editable at the top of `cad/parametric_insert.py`):
+
+| Parameter | Value | Why |
+|---|---|---|
+| Outer footprint | 412 × 306 mm | 4 mm inset per side for drop-in/lift-out clearance |
+| Rim height | 22 mm | Far below the 100 mm overflow |
+| Center cutout | 92 mm dia | Clears drain throat + pop-up button + finger access |
+| Drain-ring flat | 130 mm OD, 3 mm height | Funnel transitions to a flat ring around the drain so the insert doesn't sit on drain hardware |
+| Wall thickness | 3 mm | Standard for FDM PETG |
+| Slope (rim to drain) | ~5° | 3× plumbing minimum, defeats surface tension |
+
+Quadrant sizes (each tile after split): **~206 × 153 × 22 mm, 424 cm³**. Fits any 256 mm-class consumer printer with massive margin. At ~110 g per tile of filament, each takes 3–4 hours to print.
+
 ## Open questions worth confirming before printing
 
-1. **Real basin floor dimensions.** Both STEP files assume 451.8 × 401.0 mm footprint, but the previous chat referenced a 420 × 314 mm basin floor with the insert "nesting partway up the basin walls." Verify with a tape measure: lay a ruler across the basin floor at its widest, narrowest, and depth. Send the numbers and I'll rescale the model if needed.
-2. **Drain hole diameter.** The STEP has a ~71–87 mm center hole. Your actual drain throat needs to be at most that size. Measure with calipers across the open drain (with the pop-up button out).
-3. **Pop-up clearance.** When you push the pop-up button down to drain, what's its diameter and how high above the basin floor does it sit when up? The insert center hole needs to clear that motion.
-4. **Overflow hole position.** Previous chat said ~4 inches (~100 mm) above the basin floor. Concept 2 tops out at 70 mm so you're clear, but verify the overflow isn't blocked by the back lip of the insert. A photo from above with the insert dry-fit (cardboard mockup at 451 × 401 mm works) would confirm.
+1. **Confirm drain offset.** Sink.pdf assumes the drain is centered. If it's actually offset toward the back wall by more than ~20 mm, edit `parametric_insert.py` to add a `DRAIN_OFFSET_Y` parameter, or measure and tell me and I'll add it.
+2. **Confirm overflow height.** 22 mm rim height has 78 mm of clearance to a 100 mm overflow, so this is almost certainly safe — but a tape measure from basin floor to bottom of overflow hole confirms it.
+3. **Cardboard mockup before printing.** Cut a 412 × 306 mm rectangle of corrugated cardboard, cut a 92 mm center hole, drop it in the basin. Confirms fit before you spend money.
+4. **Pop-up button motion.** When the pop-up rises, how high does it sit above the basin floor? The insert's 22 mm rim should give the button room to operate, but a quick measurement closes the loop.
