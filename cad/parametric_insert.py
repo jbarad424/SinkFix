@@ -4,100 +4,84 @@ Parametric sink-drainage insert for a porcelain basin.
 Sized to measurements from Sink.pdf:
   Basin floor : 420 x 314 mm (flat zone)
   Drain hole  : 70.78 mm diameter, centered
-  Overflow    : ~100 mm above floor (must remain unblocked)
+  Overflow    : ~100 mm above floor
 
-Geometry:
-  - Sits flat on basin floor (does not ride the sloped walls)
-  - Footprint inset 4 mm per side for lift-out clearance
-  - Continuous slope from outer rim down to a flat ring around the drain
-  - Center cutout clears drain throat + pop-up + finger access
-  - Output as 4 quadrants for printing on a 256 mm bed (Bambu A1, Prusa MK4, etc.)
+Geometry: a thin (3 mm) funnel-shaped shell.
+  - Outer rim is a 412 x 306 mm rectangle at z = RIM_HEIGHT
+  - Bottom edge is a circular ring around the drain at z = 0
+  - Surface slopes smoothly from rim to drain ring
+  - Center cutout clears the drain throat + pop-up button + finger
+  - Output as full piece + 4 quadrants for printing on a 256 mm bed
 
 Re-run after changing the constants below to regenerate STL/STEP.
 """
 import os
 import cadquery as cq
+from cadquery import Wire, Solid, Vector, Face, Shell
 
 # ---- parameters (mm) ----
 BASIN_L          = 420.0   # basin floor long axis
 BASIN_W          = 314.0   # basin floor short axis
-EDGE_INSET       = 4.0     # gap from basin wall (drop-in/lift-out clearance)
+EDGE_INSET       = 4.0     # gap from basin floor edge (drop-in clearance)
 DRAIN_HOLE_D     = 92.0    # center cutout (clears 70.78 drain + pop-up + finger)
-RIM_HEIGHT       = 50.0    # outer rim above basin floor (steep slope = aggressive drainage)
-DRAIN_RING_H     = 3.0     # flat lip around drain (so insert doesn't sit on drain hardware)
-DRAIN_RING_OD    = 130.0   # outer dia of the flat ring before slope begins
-WALL_THICK       = 3.0     # FDM wall thickness
+DRAIN_RING_OD    = 130.0   # outer dia of the drain-ring base
+RIM_HEIGHT       = 50.0    # outer rim height above basin floor
+WALL_THICK       = 3.0     # funnel shell thickness
 
-OUTER_L = BASIN_L - 2 * EDGE_INSET
-OUTER_W = BASIN_W - 2 * EDGE_INSET
+OUTER_L = BASIN_L - 2 * EDGE_INSET   # 412
+OUTER_W = BASIN_W - 2 * EDGE_INSET   # 306
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), "v2_parametric")
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# ---- build outer body (solid slab, will be shelled to a thin funnel) ----
-body = (
-    cq.Workplane("XY")
-    .rect(OUTER_L, OUTER_W)
-    .extrude(RIM_HEIGHT)
-    .edges("|Z")
-    .fillet(8)
-)
 
-# ---- build funnel cavity as a proper loft solid via Workplane chain ----
-inner_w = OUTER_L - 2 * WALL_THICK
-inner_h = OUTER_W - 2 * WALL_THICK
+def make_loft_solid(top_outer_L, top_outer_W, bottom_outer_D, top_z, bottom_z):
+    """Loft a closed solid from a circle (bottom) up to a rectangle (top).
 
-funnel = (
-    cq.Workplane("XY")
-    .workplane(offset=DRAIN_RING_H)
-    .circle(DRAIN_RING_OD / 2)
-    .workplane(offset=(RIM_HEIGHT + 1.0) - DRAIN_RING_H)
-    .rect(inner_w, inner_h)
-    .loft(ruled=False, combine=True)
-)
-
-# ---- subtract cavity, then drill drain hole ----
-insert = body.cut(funnel)
-
-# ---- hollow the part: leave WALL_THICK shell, open at the bottom ----
-# This turns a 3.5 kg slab into a ~450 g shelled funnel.
-bottom_face = insert.faces("<Z").val()
-try:
-    insert = insert.shell(-WALL_THICK, kind="intersection")
-    # shell with negative offset hollows inward; we open the bottom by cutting
-    # a slab off the underside.
-except Exception:
-    # Fallback: subtract an inset version of the body from itself.
-    inner_body = (
+    Uses the Workplane .loft(combine=True) which automatically closes the ends.
+    """
+    hx, hy = top_outer_L / 2, top_outer_W / 2
+    return (
         cq.Workplane("XY")
-        .rect(OUTER_L - 2 * WALL_THICK, OUTER_W - 2 * WALL_THICK)
-        .extrude(RIM_HEIGHT - WALL_THICK)
-        .edges("|Z")
-        .fillet(max(0.1, 8 - WALL_THICK))
+        .workplane(offset=bottom_z)
+        .circle(bottom_outer_D / 2)
+        .workplane(offset=top_z - bottom_z)
+        .polyline([(-hx, -hy), (hx, -hy), (hx, hy), (-hx, hy)])
+        .close()
+        .loft(ruled=False, combine=True)
+        .val()
     )
-    # The inner_body sits on top of a WALL_THICK-thick floor at z=0..WALL_THICK
-    inner_body = inner_body.translate((0, 0, WALL_THICK))
-    insert = insert.cut(inner_body)
 
-# Open the bottom: remove the floor under the funnel cavity
-floor_cutter = (
-    cq.Workplane("XY")
-    .rect(OUTER_L - 2 * WALL_THICK, OUTER_W - 2 * WALL_THICK)
-    .extrude(WALL_THICK + 0.1)
-    .edges("|Z")
-    .fillet(max(0.1, 6))
+
+# Outer funnel solid (the full "cone" envelope)
+outer_solid = make_loft_solid(
+    OUTER_L, OUTER_W, DRAIN_RING_OD,
+    top_z=RIM_HEIGHT, bottom_z=0,
 )
-insert = insert.cut(floor_cutter)
 
-drain = (
-    cq.Workplane("XY")
-    .circle(DRAIN_HOLE_D / 2)
-    .extrude(RIM_HEIGHT + 2)
+# Inner funnel solid (offset inward by WALL_THICK on each side, and shorter on
+# top/bottom so the shell is closed at both ends)
+inner_top_L = OUTER_L - 2 * WALL_THICK
+inner_top_W = OUTER_W - 2 * WALL_THICK
+# Scale the bottom diameter so the inner wall stays ~WALL_THICK away from the outer:
+# the rim-to-drain radial run is roughly (OUTER_L/2 - DRAIN_RING_OD/2) ~141 mm,
+# the height is RIM_HEIGHT (50 mm). Project WALL_THICK perpendicular to the
+# surface slope: shrink the bottom ring by 2*WALL_THICK along the slope axis.
+inner_bottom_D = max(DRAIN_RING_OD - 2 * WALL_THICK, DRAIN_HOLE_D + 2)
+inner_solid = make_loft_solid(
+    inner_top_L, inner_top_W, inner_bottom_D,
+    top_z=RIM_HEIGHT + 0.1,   # nudge so top is open
+    bottom_z=-0.1,            # nudge so bottom is open
 )
-insert = insert.cut(drain)
 
-# ---- export and measure ----
-solid = insert.val()
+# Subtract inner from outer to get a 3mm shell
+shell_wp = cq.Workplane("XY").add(outer_solid).cut(inner_solid)
+
+# Drill the drain hole through the bottom of the shell
+drain = cq.Workplane("XY").circle(DRAIN_HOLE_D / 2).extrude(RIM_HEIGHT + 5)
+shell_wp = shell_wp.cut(drain)
+
+solid = shell_wp.val()
 bb = solid.BoundingBox()
 vol_cm3 = solid.Volume() / 1000.0
 print(f"Full insert bbox: {bb.xlen:.1f} x {bb.ylen:.1f} x {bb.zlen:.1f} mm")
@@ -105,11 +89,11 @@ print(f"Full insert solid volume: {vol_cm3:.1f} cm^3")
 print(f"Mass at 100% PETG (1.27 g/cc): {vol_cm3 * 1.27:.0f} g")
 print(f"Filament at 20% infill: ~{vol_cm3 * 1.27 * 0.21:.0f} g")
 
-cq.exporters.export(insert, os.path.join(OUT_DIR, "insert_full.step"))
-cq.exporters.export(insert, os.path.join(OUT_DIR, "insert_full.stl"),
+cq.exporters.export(shell_wp, os.path.join(OUT_DIR, "insert_full.step"))
+cq.exporters.export(shell_wp, os.path.join(OUT_DIR, "insert_full.stl"),
                     tolerance=0.1, angularTolerance=0.2)
 
-# ---- quarter for consumer printer beds ----
+# ---- quarter for consumer-printer beds ----
 big = 1000.0
 quadrants = {
     "Q1_pp":  ( 1,  1),
